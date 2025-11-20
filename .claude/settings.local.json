@@ -14,7 +14,8 @@
       "Bash(git ls-tree:*)",
       "Bash(cat:*)",
       "Bash(git submodule status:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(\" 前缀\n- Vercel CLI现在能正确检测到Next.js版本\n\n修改内容：\n- buildCommand: npm run build (在my-app目录执行)\n- outputDirectory: .next (相对于my-app)\n- installCommand: npm install --legacy-peer-deps\n- rootDirectory: my-app (关键配置)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
