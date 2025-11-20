@@ -1,0 +1,13 @@
+{
+  "name": "baduanjin-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "npm run dev --prefix my-app",
+    "build": "npm run build --prefix my-app",
+    "start": "npm run start --prefix my-app",
+    "lint": "npm run lint --prefix my-app"
+  },
+  "devDependencies": {
+    "next": "16.0.3"
+  }
+}
