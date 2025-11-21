@@ -1,7 +1,7 @@
 {
-  "buildCommand": "npm run build --prefix my-app",
+  "buildCommand": "npm run build",
   "outputDirectory": "my-app/.next",
-  "devCommand": "npm run dev --prefix my-app",
-  "installCommand": "npm install --prefix my-app --legacy-peer-deps",
+  "devCommand": "npm run dev",
+  "installCommand": "npm install --legacy-peer-deps",
   "framework": "nextjs"
 }
