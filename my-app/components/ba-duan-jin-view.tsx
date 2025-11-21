@@ -45,12 +45,13 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
     const progressTimerRef = useRef<NodeJS.Timeout | null>(null)
     const instructionAudioRef = useRef<HTMLAudioElement | null>(null)
     const phaseEndAtRef = useRef<number>(0)
+    const breathRemainingRef = useRef<number>(0)
     const isPlayingRef = useRef(false)
     const sectionIntroTargetRef = useRef<number | null>(null)
 
     const currentMovement = MOVEMENTS[currentMovementIndex]
     const repetitions = settings.repetitions
-    const currentSectionReps = currentMovementIndex === 0 ? 3 : repetitions // 第1节 3 次，其余沿用设置
+    const currentSectionReps = currentMovementIndex === 0 ? 3 : repetitions // 第一节 3 次，其余按设置
 
     useEffect(() => {
         isPlayingRef.current = isPlaying
@@ -100,6 +101,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         setStatusText(`第 ${currentMovementIndex + 1} 节 · ${phaseType === "inhale" ? "吸气" : "呼气"}`)
 
         phaseEndAtRef.current = Date.now() + durationMs
+        breathRemainingRef.current = durationMs
         startProgressTimer(durationMs)
 
         if (phaseType === "inhale") {
@@ -112,6 +114,29 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
             setProgress(100)
             onComplete()
         }, durationMs) as unknown as NodeJS.Timeout
+    }
+
+    const startBreathCycle = (movementIdx: number, rep: number) => {
+        if (!isPlayingRef.current) return
+        const durations = getMovementDurations(MOVEMENTS[movementIdx].id)
+        startBreathPhase("inhale", durations.inhaleDuration * 1000, () => {
+            if (!isPlayingRef.current) return
+            startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
+                if (!isPlayingRef.current) return
+                const targetReps = movementIdx === 0 ? 3 : settings.repetitions
+                if (rep >= targetReps) {
+                    const nextMovement = movementIdx + 1
+                    if (nextMovement >= MOVEMENTS.length) {
+                        startEnding()
+                    } else {
+                        startSectionIntro(nextMovement)
+                    }
+                } else {
+                    setCurrentRep(rep + 1)
+                    startBreathCycle(movementIdx, rep + 1)
+                }
+            })
+        })
     }
 
     const startSectionIntro = (movementIdx: number) => {
@@ -136,29 +161,6 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
 
         playInstructionAudio(`/audio/section-${movementIdx + 1}.mp3`, () => {
             startBreathCycle(movementIdx, 1)
-        })
-    }
-
-    const startBreathCycle = (movementIdx: number, rep: number) => {
-        if (!isPlayingRef.current) return
-        const durations = getMovementDurations(MOVEMENTS[movementIdx].id)
-        startBreathPhase("inhale", durations.inhaleDuration * 1000, () => {
-            if (!isPlayingRef.current) return
-            startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
-                if (!isPlayingRef.current) return
-                const targetReps = movementIdx === 0 ? 3 : settings.repetitions
-                if (rep >= targetReps) {
-                    const nextMovement = movementIdx + 1
-                    if (nextMovement >= MOVEMENTS.length) {
-                        startEnding()
-                    } else {
-                        startSectionIntro(nextMovement)
-                    }
-                } else {
-                    setCurrentRep(rep + 1)
-                    startBreathCycle(movementIdx, rep + 1)
-                }
-            })
         })
     }
 
@@ -213,43 +215,42 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
 
         if (phase === "breath") {
             const now = Date.now()
-            const remaining = Math.max(phaseEndAtRef.current - now, 0)
             const durations = getMovementDurations(MOVEMENTS[currentMovementIndex].id)
-            const fallback =
-                breathState === "inhale" ? durations.inhaleDuration * 1000 : durations.exhaleDuration * 1000
-            startBreathPhase(breathState, remaining || fallback, () => {
-                // resume completion logic for current rep
-                if (!isPlayingRef.current) return
-                if (breathState === "inhale") {
-                    startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
-                        const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
-                        if (currentRep >= targetReps) {
-                            const nextMovement = currentMovementIndex + 1
-                            if (nextMovement >= MOVEMENTS.length) {
-                                startEnding()
-                            } else {
-                                startSectionIntro(nextMovement)
-                            }
-                        } else {
-                            setCurrentRep((r) => r + 1)
-                            startBreathCycle(currentMovementIndex, currentRep + 1)
-                        }
-                    })
-                } else {
-                    const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
-                    if (currentRep >= targetReps) {
-                        const nextMovement = currentMovementIndex + 1
-                        if (nextMovement >= MOVEMENTS.length) {
-                            startEnding()
-                        } else {
-                            startSectionIntro(nextMovement)
-                        }
+            const inhaleMs = durations.inhaleDuration * 1000
+            const exhaleMs = durations.exhaleDuration * 1000
+            const remaining = Math.max(phaseEndAtRef.current - now, 0) || breathRemainingRef.current
+            const resumeBreathState = breathState
+            const repAtPause = currentRep
+
+            const afterExhale = () => {
+                const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
+                if (repAtPause >= targetReps) {
+                    const nextMovement = currentMovementIndex + 1
+                    if (nextMovement >= MOVEMENTS.length) {
+                        startEnding()
                     } else {
-                        setCurrentRep((r) => r + 1)
-                        startBreathCycle(currentMovementIndex, currentRep + 1)
+                        startSectionIntro(nextMovement)
                     }
+                } else {
+                    setCurrentRep((r) => r + 1)
+                    startBreathCycle(currentMovementIndex, repAtPause + 1)
                 }
-            })
+            }
+
+            if (resumeBreathState === "inhale") {
+                startBreathPhase("inhale", remaining || inhaleMs, () => {
+                    if (!isPlayingRef.current) return
+                    startBreathPhase("exhale", exhaleMs, () => {
+                        if (!isPlayingRef.current) return
+                        afterExhale()
+                    })
+                })
+            } else {
+                startBreathPhase("exhale", remaining || exhaleMs, () => {
+                    if (!isPlayingRef.current) return
+                    afterExhale()
+                })
+            }
         }
     }
 
@@ -260,6 +261,9 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         stopSound()
         if (instructionAudioRef.current && !instructionAudioRef.current.paused) {
             instructionAudioRef.current.pause()
+        }
+        if (phase === "breath") {
+            breathRemainingRef.current = Math.max(phaseEndAtRef.current - Date.now(), 0)
         }
     }
 
@@ -371,8 +375,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                         <div className="text-center px-6 py-3 bg-muted/30 rounded-lg">
                             <div className="text-xs text-muted-foreground mb-1">当前次数</div>
                             <div className="text-2xl font-bold font-mono">
-                                {currentRep}{" "}
-                                <span className="text-sm text-muted-foreground">/ {currentSectionReps}</span>
+                                {currentRep} <span className="text-sm text-muted-foreground">/ {currentSectionReps}</span>
                             </div>
                         </div>
                         <div className="text-center px-6 py-3 bg-muted/30 rounded-lg">
