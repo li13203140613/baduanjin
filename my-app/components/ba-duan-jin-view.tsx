@@ -71,8 +71,14 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
     }
 
     const playInstructionAudio = (src: string, onEnded: () => void) => {
-        const audio = new Audio(src)
-        instructionAudioRef.current = audio
+        if (!instructionAudioRef.current) {
+            instructionAudioRef.current = new Audio()
+        }
+        const audio = instructionAudioRef.current
+        audio.pause()
+        audio.currentTime = 0
+        audio.src = src
+        audio.loop = false
         audio.onended = () => {
             if (!isPlayingRef.current) return
             onEnded()
@@ -81,7 +87,11 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
             if (!isPlayingRef.current) return
             onEnded()
         }
-        audio.play().catch(() => onEnded())
+        // 复用同一个 Audio 元素，提升移动端连播成功率
+        audio
+            .play()
+            .then(() => {})
+            .catch(() => onEnded())
     }
 
     const startProgressTimer = (durationMs: number) => {
@@ -371,16 +381,19 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                         </svg>
                     </div>
 
-                    <div className="flex items-center gap-4 mb-8">
-                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-8 w-full sm:w-auto">
+                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg flex-1 sm:flex-none">
                             <div className="text-xs text-muted-foreground mb-1">当前次数</div>
                             <div className="text-2xl font-bold font-mono">
                                 {currentRep} <span className="text-sm text-muted-foreground">/ {currentSectionReps}</span>
                             </div>
                         </div>
-                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg">
+                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg flex-1 sm:flex-none">
                             <div className="text-xs text-muted-foreground mb-1">状态</div>
                             <div className="text-sm font-medium text-muted-foreground min-w-[140px]">{statusText}</div>
+                        </div>
+                        <div className="text-xs text-muted-foreground text-center sm:text-left">
+                            第一节固定 3 次，其余按“重复次数”设置
                         </div>
                     </div>
 
