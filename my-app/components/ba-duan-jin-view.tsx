@@ -26,102 +26,257 @@ type BaDuanJinViewProps = {
     showBackButton?: boolean
 }
 
+type Phase = "idle" | "prepare" | "section-intro" | "breath" | "ending"
+
 export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
     const { settings, getMovementDurations } = useBaDuanJinSettings()
     const { playInhale, playExhale, stop: stopSound } = useBreathSound()
 
     const [isPlaying, setIsPlaying] = useState(false)
+    const [phase, setPhase] = useState<Phase>("idle")
     const [currentMovementIndex, setCurrentMovementIndex] = useState(0)
     const [currentRep, setCurrentRep] = useState(1)
     const [breathState, setBreathState] = useState<"inhale" | "exhale">("inhale")
     const [progress, setProgress] = useState(0)
+    const [statusText, setStatusText] = useState("待开始")
+    const [playedIntroFlags, setPlayedIntroFlags] = useState<boolean[]>(Array(MOVEMENTS.length).fill(false))
 
     const timerRef = useRef<NodeJS.Timeout | null>(null)
+    const progressTimerRef = useRef<NodeJS.Timeout | null>(null)
+    const instructionAudioRef = useRef<HTMLAudioElement | null>(null)
+    const phaseEndAtRef = useRef<number>(0)
+    const isPlayingRef = useRef(false)
+    const sectionIntroTargetRef = useRef<number | null>(null)
 
     const currentMovement = MOVEMENTS[currentMovementIndex]
-    const currentDurations = getMovementDurations(currentMovement.id)
     const repetitions = settings.repetitions
+    const currentSectionReps = currentMovementIndex === 0 ? 3 : repetitions // 第1节 3 次，其余沿用设置
 
     useEffect(() => {
-        if (!isPlaying) {
-            stopSound()
-            return
-        }
-
-        if (breathState === "inhale") {
-            playInhale(currentDurations.inhaleDuration)
-        } else {
-            playExhale(currentDurations.exhaleDuration)
-        }
-    }, [isPlaying, breathState, currentDurations.inhaleDuration, currentDurations.exhaleDuration, playInhale, playExhale, stopSound])
-
-    useEffect(() => {
-        if (!isPlaying) {
-            if (timerRef.current) clearInterval(timerRef.current)
-            return
-        }
-
-        const cycleDuration =
-            (breathState === "inhale" ? currentDurations.inhaleDuration : currentDurations.exhaleDuration) * 1000
-        let phaseStartTime = Date.now()
-
-        const runLoop = () => {
-            const now = Date.now()
-            const elapsed = now - phaseStartTime
-            const progressPercent = Math.min((elapsed / cycleDuration) * 100, 100)
-
-            setProgress(progressPercent)
-
-            if (elapsed >= cycleDuration) {
-                phaseStartTime = now
-
-                setBreathState((prev) => {
-                    if (prev === "inhale") return "exhale"
-
-                    setCurrentRep((r) => {
-                        if (r >= repetitions) {
-                            setCurrentMovementIndex((m) => {
-                                if (m >= MOVEMENTS.length - 1) {
-                                    setIsPlaying(false)
-                                    return 0
-                                }
-                                return m + 1
-                            })
-                            return 1
-                        }
-                        return r + 1
-                    })
-                    return "inhale"
-                })
-                setProgress(0)
-            }
-        }
-
-        timerRef.current = setInterval(runLoop, 50)
-
-        return () => {
-            if (timerRef.current) clearInterval(timerRef.current)
-        }
-    }, [isPlaying, breathState, currentDurations.inhaleDuration, currentDurations.exhaleDuration, repetitions])
+        isPlayingRef.current = isPlaying
+    }, [isPlaying])
 
     useEffect(() => {
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current)
+            clearTimers()
             stopSound()
+            instructionAudioRef.current?.pause()
         }
     }, [stopSound])
 
-    const handleStop = () => {
+    const clearTimers = () => {
+        if (timerRef.current) clearTimeout(timerRef.current as unknown as number)
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current as unknown as number)
+    }
+
+    const playInstructionAudio = (src: string, onEnded: () => void) => {
+        const audio = new Audio(src)
+        instructionAudioRef.current = audio
+        audio.onended = () => {
+            if (!isPlayingRef.current) return
+            onEnded()
+        }
+        audio.onerror = () => {
+            if (!isPlayingRef.current) return
+            onEnded()
+        }
+        audio.play().catch(() => onEnded())
+    }
+
+    const startProgressTimer = (durationMs: number) => {
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current as unknown as number)
+        const start = Date.now()
+        progressTimerRef.current = setInterval(() => {
+            const elapsed = Date.now() - start
+            const percent = Math.min((elapsed / durationMs) * 100, 100)
+            setProgress(percent)
+        }, 50)
+    }
+
+    const startBreathPhase = (phaseType: "inhale" | "exhale", durationMs: number, onComplete: () => void) => {
+        clearTimers()
+        setBreathState(phaseType)
+        setPhase("breath")
+        setStatusText(`第 ${currentMovementIndex + 1} 节 · ${phaseType === "inhale" ? "吸气" : "呼气"}`)
+
+        phaseEndAtRef.current = Date.now() + durationMs
+        startProgressTimer(durationMs)
+
+        if (phaseType === "inhale") {
+            playInhale(durationMs / 1000)
+        } else {
+            playExhale(durationMs / 1000)
+        }
+
+        timerRef.current = setTimeout(() => {
+            setProgress(100)
+            onComplete()
+        }, durationMs) as unknown as NodeJS.Timeout
+    }
+
+    const startSectionIntro = (movementIdx: number) => {
+        if (!isPlayingRef.current) return
+        setCurrentMovementIndex(movementIdx)
+        setCurrentRep(1)
+        setBreathState("inhale")
+
+        const alreadyPlayed = playedIntroFlags[movementIdx]
+        if (alreadyPlayed) {
+            startBreathCycle(movementIdx, 1)
+            return
+        }
+
+        sectionIntroTargetRef.current = movementIdx
+        setPhase("section-intro")
+        setStatusText(`第 ${movementIdx + 1} 节提示…`)
+
+        const nextFlags = [...playedIntroFlags]
+        nextFlags[movementIdx] = true
+        setPlayedIntroFlags(nextFlags)
+
+        playInstructionAudio(`/audio/section-${movementIdx + 1}.mp3`, () => {
+            startBreathCycle(movementIdx, 1)
+        })
+    }
+
+    const startBreathCycle = (movementIdx: number, rep: number) => {
+        if (!isPlayingRef.current) return
+        const durations = getMovementDurations(MOVEMENTS[movementIdx].id)
+        startBreathPhase("inhale", durations.inhaleDuration * 1000, () => {
+            if (!isPlayingRef.current) return
+            startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
+                if (!isPlayingRef.current) return
+                const targetReps = movementIdx === 0 ? 3 : settings.repetitions
+                if (rep >= targetReps) {
+                    const nextMovement = movementIdx + 1
+                    if (nextMovement >= MOVEMENTS.length) {
+                        startEnding()
+                    } else {
+                        startSectionIntro(nextMovement)
+                    }
+                } else {
+                    setCurrentRep(rep + 1)
+                    startBreathCycle(movementIdx, rep + 1)
+                }
+            })
+        })
+    }
+
+    const startPrepare = () => {
+        if (!isPlayingRef.current) return
+        setPhase("prepare")
+        setStatusText("预备中…")
+        playInstructionAudio("/audio/prepare.mp3", () => startSectionIntro(0))
+    }
+
+    const startEnding = () => {
+        if (!isPlayingRef.current) return
+        setPhase("ending")
+        setStatusText("结束提示…")
+        clearTimers()
+        playInstructionAudio("/audio/ending.mp3", () => {
+            handleStop()
+        })
+    }
+
+    const handleStart = () => {
+        if (isPlaying) return
+
+        // 初次开始
+        if (phase === "idle") {
+            setPlayedIntroFlags(Array(MOVEMENTS.length).fill(false))
+            setCurrentMovementIndex(0)
+            setCurrentRep(1)
+            setBreathState("inhale")
+            setProgress(0)
+            isPlayingRef.current = true
+            setIsPlaying(true)
+            startPrepare()
+            return
+        }
+
+        // 恢复暂停
+        isPlayingRef.current = true
+        setIsPlaying(true)
+
+        if (phase === "prepare" || phase === "section-intro" || phase === "ending") {
+            if (instructionAudioRef.current) {
+                instructionAudioRef.current.play().catch(() => {
+                    if (phase === "prepare") startPrepare()
+                    else if (phase === "ending") startEnding()
+                    else if (phase === "section-intro" && sectionIntroTargetRef.current !== null) {
+                        startSectionIntro(sectionIntroTargetRef.current)
+                    }
+                })
+            }
+        }
+
+        if (phase === "breath") {
+            const now = Date.now()
+            const remaining = Math.max(phaseEndAtRef.current - now, 0)
+            const durations = getMovementDurations(MOVEMENTS[currentMovementIndex].id)
+            const fallback =
+                breathState === "inhale" ? durations.inhaleDuration * 1000 : durations.exhaleDuration * 1000
+            startBreathPhase(breathState, remaining || fallback, () => {
+                // resume completion logic for current rep
+                if (!isPlayingRef.current) return
+                if (breathState === "inhale") {
+                    startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
+                        const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
+                        if (currentRep >= targetReps) {
+                            const nextMovement = currentMovementIndex + 1
+                            if (nextMovement >= MOVEMENTS.length) {
+                                startEnding()
+                            } else {
+                                startSectionIntro(nextMovement)
+                            }
+                        } else {
+                            setCurrentRep((r) => r + 1)
+                            startBreathCycle(currentMovementIndex, currentRep + 1)
+                        }
+                    })
+                } else {
+                    const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
+                    if (currentRep >= targetReps) {
+                        const nextMovement = currentMovementIndex + 1
+                        if (nextMovement >= MOVEMENTS.length) {
+                            startEnding()
+                        } else {
+                            startSectionIntro(nextMovement)
+                        }
+                    } else {
+                        setCurrentRep((r) => r + 1)
+                        startBreathCycle(currentMovementIndex, currentRep + 1)
+                    }
+                }
+            })
+        }
+    }
+
+    const handlePause = () => {
+        isPlayingRef.current = false
         setIsPlaying(false)
+        clearTimers()
+        stopSound()
+        if (instructionAudioRef.current && !instructionAudioRef.current.paused) {
+            instructionAudioRef.current.pause()
+        }
+    }
+
+    const handleStop = () => {
+        isPlayingRef.current = false
+        setIsPlaying(false)
+        clearTimers()
+        stopSound()
+        instructionAudioRef.current?.pause()
+        instructionAudioRef.current = null
+        setPhase("idle")
         setCurrentMovementIndex(0)
         setCurrentRep(1)
         setBreathState("inhale")
         setProgress(0)
-        stopSound()
-
-        if (timerRef.current) {
-            clearInterval(timerRef.current)
-        }
+        setStatusText("待开始")
+        setPlayedIntroFlags(Array(MOVEMENTS.length).fill(false))
     }
 
     return (
@@ -181,8 +336,8 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                                 <div className="text-2xl font-bold mb-1">{breathState === "inhale" ? "吸气" : "呼气"}</div>
                                 <div className="mt-2 text-xs text-muted-foreground">
                                     {breathState === "inhale"
-                                        ? `时长 ${currentDurations.inhaleDuration} 秒`
-                                        : `时长 ${currentDurations.exhaleDuration} 秒`}
+                                        ? `时长 ${getMovementDurations(currentMovement.id).inhaleDuration} 秒`
+                                        : `时长 ${getMovementDurations(currentMovement.id).exhaleDuration} 秒`}
                                 </div>
                             </div>
                         </div>
@@ -216,8 +371,13 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                         <div className="text-center px-6 py-3 bg-muted/30 rounded-lg">
                             <div className="text-xs text-muted-foreground mb-1">当前次数</div>
                             <div className="text-2xl font-bold font-mono">
-                                {currentRep} <span className="text-sm text-muted-foreground">/ {repetitions}</span>
+                                {currentRep}{" "}
+                                <span className="text-sm text-muted-foreground">/ {currentSectionReps}</span>
                             </div>
+                        </div>
+                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg">
+                            <div className="text-xs text-muted-foreground mb-1">状态</div>
+                            <div className="text-sm font-medium text-muted-foreground min-w-[140px]">{statusText}</div>
                         </div>
                     </div>
 
@@ -226,7 +386,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                             <Button
                                 size="lg"
                                 className="h-16 w-16 rounded-full text-xl shadow-xl hover:scale-105 transition-transform"
-                                onClick={() => setIsPlaying(true)}
+                                onClick={handleStart}
                             >
                                 <Play className="h-6 w-6 ml-1" />
                             </Button>
@@ -235,11 +395,18 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                                 size="lg"
                                 variant="outline"
                                 className="h-16 w-16 rounded-full text-xl border-2 bg-transparent"
-                                onClick={() => setIsPlaying(false)}
+                                onClick={handlePause}
                             >
                                 <Pause className="h-6 w-6" />
                             </Button>
                         )}
+                        <Button
+                            variant="ghost"
+                            className="text-sm text-muted-foreground hover:text-foreground"
+                            onClick={handleStop}
+                        >
+                            停止
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
