@@ -47,8 +47,11 @@ type InstructionCue = {
     fallbackAudio?: string
 }
 
+const mediaBase =
+    (process.env.NEXT_PUBLIC_VIDEO_BASE_URL && process.env.NEXT_PUBLIC_VIDEO_BASE_URL.replace(/\/$/, "")) || "/audio"
+
 const namedCuePath = (folder: string, base: string, ext: "MP3" | "mp4") =>
-    `/audio/${encodeURIComponent(folder)}/${encodeURIComponent(base)}.${ext}`
+    `${mediaBase}/${encodeURIComponent(folder)}/${encodeURIComponent(base)}.${ext}`
 
 const PREPARE_CUE: InstructionCue = {
     audio: namedCuePath("prepare", "八段锦音效1", "MP3"),

@@ -497,7 +497,7 @@ export default function HomePage() {
                                 <div className="relative">
                                     <video
                                         key={video.fileName}
-                                        src={`/audio/${encodeURIComponent(video.fileName)}`}
+                                        src={`${videoBase}/${encodeURIComponent(video.fileName)}`}
                                         controls
                                         preload="metadata"
                                         className="aspect-video w-full bg-black"
