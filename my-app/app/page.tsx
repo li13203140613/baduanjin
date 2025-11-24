@@ -34,8 +34,8 @@ type SegmentVideo = {
 const videoBase =
     (process.env.NEXT_PUBLIC_VIDEO_BASE_URL && process.env.NEXT_PUBLIC_VIDEO_BASE_URL.replace(/\/$/, "")) || "/audio"
 
-const segmentVideoPath = (index: number) =>
-    `${videoBase}/${encodeURIComponent(`八段锦音效${index}`)}/${encodeURIComponent(`八段锦音效${index}`)}.mp4`
+const segmentVideoPath = (folder: string, baseName: string) =>
+    `${videoBase}/${encodeURIComponent(folder)}/${encodeURIComponent(baseName)}.mp4`
 
 const navItems = [
     { label: "首页", href: "/" },
@@ -93,14 +93,14 @@ const featuredVideo = videos[0]
 const segmentVideos: SegmentVideo[] = [
     {
         id: 1,
-        title: "起势 · 平稳调息",
+        title: "序言 · 预备",
         summary: "站稳、松肩，练习前先做 2-3 轮深呼吸，让身体进入八段锦节奏。",
         notes: [
             "双脚与肩同宽，膝盖微屈，脚掌三点均匀受力。",
             "舌抵上腭、尾闾微收，避免耸肩或塌腰。",
             "先跟随口令做一轮腹式呼吸，再进入第一式。",
         ],
-        videoSrc: segmentVideoPath(1),
+        videoSrc: segmentVideoPath("prepare", "八段锦音效"),
     },
     {
         id: 2,
@@ -111,7 +111,7 @@ const segmentVideos: SegmentVideo[] = [
             "托起时配合吸气，下落呼气，保持脊柱拔伸。",
             "尾闾内收，避免过度后仰或塌腰。",
         ],
-        videoSrc: segmentVideoPath(2),
+        videoSrc: segmentVideoPath("section-1", "八段锦音效1"),
     },
     {
         id: 3,
@@ -121,7 +121,7 @@ const segmentVideos: SegmentVideo[] = [
             "前后脚跟大致在一条线上，膝盖与脚尖同向。",
             "拉弓时含胸拔背，目光随拇指，避免耸肩。",
         ],
-        videoSrc: segmentVideoPath(3),
+        videoSrc: segmentVideoPath("section-2", "八段锦音效2"),
     },
     {
         id: 4,
@@ -132,7 +132,7 @@ const segmentVideos: SegmentVideo[] = [
             "托掌、按掌同时配合呼吸，感觉两侧均匀延展。",
             "髋部保持正向，不要跟着扭转。",
         ],
-        videoSrc: segmentVideoPath(4),
+        videoSrc: segmentVideoPath("section-3", "八段锦音效3"),
     },
     {
         id: 5,
@@ -143,7 +143,7 @@ const segmentVideos: SegmentVideo[] = [
             "下巴微收，延长后颈，肩膀保持下沉。",
             "眼睛到位后停留一拍再回正，配合呼气。",
         ],
-        videoSrc: segmentVideoPath(5),
+        videoSrc: segmentVideoPath("section-4", "八段锦音效4"),
     },
     {
         id: 6,
@@ -154,7 +154,7 @@ const segmentVideos: SegmentVideo[] = [
             "动作从髋带动，腰背保持舒展不过度塌腰。",
             "呼吸均匀，节奏可略放慢以保持平稳。",
         ],
-        videoSrc: segmentVideoPath(6),
+        videoSrc: segmentVideoPath("section-5", "八段锦音效5"),
     },
     {
         id: 7,
@@ -165,7 +165,7 @@ const segmentVideos: SegmentVideo[] = [
             "下落时呼气，起身时卷腹带动还原。",
             "腿后侧紧时可微屈膝，避免强压。",
         ],
-        videoSrc: segmentVideoPath(7),
+        videoSrc: segmentVideoPath("section-6", "八段锦音效6"),
     },
     {
         id: 8,
@@ -176,7 +176,7 @@ const segmentVideos: SegmentVideo[] = [
             "冲拳时目视前方，肩肘放松不过度耸肩。",
             "发力来自丹田与后脚蹬地，呼气配合出拳。",
         ],
-        videoSrc: segmentVideoPath(8),
+        videoSrc: segmentVideoPath("section-7", "八段锦音效7"),
     },
     {
         id: 9,
@@ -187,7 +187,7 @@ const segmentVideos: SegmentVideo[] = [
             "保持脊柱拔高，核心轻收，避免仰头。",
             "如有膝踝不适可改为小幅度提踵。",
         ],
-        videoSrc: segmentVideoPath(9),
+        videoSrc: segmentVideoPath("section-8", "八段锦音效8"),
     },
     {
         id: 10,
@@ -198,7 +198,7 @@ const segmentVideos: SegmentVideo[] = [
             "站稳感受全身沉降，再自然收势。",
             "可搭配站桩 5 分钟巩固练习效果。",
         ],
-        videoSrc: segmentVideoPath(10),
+        videoSrc: segmentVideoPath("ending", "八段锦音效10"),
     },
 ]
 

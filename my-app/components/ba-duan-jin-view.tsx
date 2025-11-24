@@ -11,27 +11,15 @@ import { useBaDuanJinSettings } from "@/hooks/useBaDuanJinSettings"
 import { useBreathSound } from "@/hooks/useBreathSound"
 import { Clapperboard, Headphones, Pause, Play, Settings2 } from "lucide-react"
 
-const MOVEMENTS = [
-    { id: 1, name: "双手托天理三焦" },
-    { id: 2, name: "左右开弓似射雕" },
-    { id: 3, name: "调理脾胃须单举" },
-    { id: 4, name: "五劳七伤往后瞧" },
-    { id: 5, name: "摇头摆尾去心火" },
-    { id: 6, name: "两手攀足固肾腰" },
-    { id: 7, name: "攒拳怒目增气力" },
-    { id: 8, name: "背后七颠百病消" },
-]
+type MovementType = "intro" | "section" | "ending"
 
-const MOVEMENTS_EN = [
-    { id: 1, name: "Two Hands Hold up the Heavens" },
-    { id: 2, name: "Drawing the Bow" },
-    { id: 3, name: "Separate Heaven and Earth" },
-    { id: 4, name: "Wise Owl Gazes Backwards" },
-    { id: 5, name: "Sway the Head and Shake the Tail" },
-    { id: 6, name: "Two Hands Hold the Feet" },
-    { id: 7, name: "Clench Fists with Fierce Eyes" },
-    { id: 8, name: "Bounce on the Heels" },
-]
+type MovementItem = {
+    id: number
+    name: string
+    type: MovementType
+    cue: InstructionCue
+    settingsId?: number
+}
 
 type BaDuanJinViewProps = {
     showBackButton?: boolean
@@ -54,19 +42,19 @@ const namedCuePath = (folder: string, base: string, ext: "MP3" | "mp4") =>
     `${mediaBase}/${encodeURIComponent(folder)}/${encodeURIComponent(base)}.${ext}`
 
 const PREPARE_CUE: InstructionCue = {
-    audio: namedCuePath("prepare", "八段锦音效1", "MP3"),
-    video: namedCuePath("prepare", "八段锦音效1", "mp4"),
+    audio: namedCuePath("prepare", "八段锦音效", "MP3"),
+    video: namedCuePath("prepare", "八段锦音效", "mp4"),
 }
 
 const SECTION_CUES: InstructionCue[] = [
-    { audio: namedCuePath("section-1", "八段锦音效2", "MP3"), video: namedCuePath("section-1", "八段锦音效2", "mp4") },
-    { audio: namedCuePath("section-2", "八段锦音效3", "MP3"), video: namedCuePath("section-2", "八段锦音效3", "mp4") },
-    { audio: namedCuePath("section-3", "八段锦音效4", "MP3"), video: namedCuePath("section-3", "八段锦音效4", "mp4") },
-    { audio: namedCuePath("section-4", "八段锦音效5", "MP3"), video: namedCuePath("section-4", "八段锦音效5", "mp4") },
-    { audio: namedCuePath("section-5", "八段锦音效6", "MP3"), video: namedCuePath("section-5", "八段锦音效6", "mp4") },
-    { audio: namedCuePath("section-6", "八段锦音效7", "MP3"), video: namedCuePath("section-6", "八段锦音效7", "mp4") },
-    { audio: namedCuePath("section-7", "八段锦音效8", "MP3"), video: namedCuePath("section-7", "八段锦音效8", "mp4") },
-    { audio: namedCuePath("section-8", "八段锦音效9", "MP3"), video: namedCuePath("section-8", "八段锦音效9", "mp4") },
+    { audio: namedCuePath("section-1", "八段锦音效1", "MP3"), video: namedCuePath("section-1", "八段锦音效1", "mp4") },
+    { audio: namedCuePath("section-2", "八段锦音效2", "MP3"), video: namedCuePath("section-2", "八段锦音效2", "mp4") },
+    { audio: namedCuePath("section-3", "八段锦音效3", "MP3"), video: namedCuePath("section-3", "八段锦音效3", "mp4") },
+    { audio: namedCuePath("section-4", "八段锦音效4", "MP3"), video: namedCuePath("section-4", "八段锦音效4", "mp4") },
+    { audio: namedCuePath("section-5", "八段锦音效5", "MP3"), video: namedCuePath("section-5", "八段锦音效5", "mp4") },
+    { audio: namedCuePath("section-6", "八段锦音效6", "MP3"), video: namedCuePath("section-6", "八段锦音效6", "mp4") },
+    { audio: namedCuePath("section-7", "八段锦音效7", "MP3"), video: namedCuePath("section-7", "八段锦音效7", "mp4") },
+    { audio: namedCuePath("section-8", "八段锦音效8", "MP3"), video: namedCuePath("section-8", "八段锦音效8", "mp4") },
 ]
 
 const ENDING_CUE: InstructionCue = {
@@ -74,11 +62,37 @@ const ENDING_CUE: InstructionCue = {
     video: namedCuePath("ending", "八段锦音效10", "mp4"),
 }
 
+const MOVEMENTS: MovementItem[] = [
+    { id: 0, name: "序言 · 预备", type: "intro", cue: PREPARE_CUE },
+    { id: 1, name: "第一式 · 双手托天理三焦", type: "section", settingsId: 1, cue: SECTION_CUES[0] },
+    { id: 2, name: "第二式 · 左右开弓似射雕", type: "section", settingsId: 2, cue: SECTION_CUES[1] },
+    { id: 3, name: "第三式 · 调理脾胃须单举", type: "section", settingsId: 3, cue: SECTION_CUES[2] },
+    { id: 4, name: "第四式 · 五劳七伤往后瞧", type: "section", settingsId: 4, cue: SECTION_CUES[3] },
+    { id: 5, name: "第五式 · 摇头摆尾去心火", type: "section", settingsId: 5, cue: SECTION_CUES[4] },
+    { id: 6, name: "第六式 · 两手攀足固肾腰", type: "section", settingsId: 6, cue: SECTION_CUES[5] },
+    { id: 7, name: "第七式 · 攒拳怒目增气力", type: "section", settingsId: 7, cue: SECTION_CUES[6] },
+    { id: 8, name: "第八式 · 背后七颠百病消", type: "section", settingsId: 8, cue: SECTION_CUES[7] },
+    { id: 9, name: "收势 · 结束", type: "ending", cue: ENDING_CUE },
+]
+
+const MOVEMENTS_EN: MovementItem[] = [
+    { id: 0, name: "Intro · Prepare", type: "intro", cue: PREPARE_CUE },
+    { id: 1, name: "Section 1 · Two Hands Hold up the Heavens", type: "section", settingsId: 1, cue: SECTION_CUES[0] },
+    { id: 2, name: "Section 2 · Drawing the Bow", type: "section", settingsId: 2, cue: SECTION_CUES[1] },
+    { id: 3, name: "Section 3 · Separate Heaven and Earth", type: "section", settingsId: 3, cue: SECTION_CUES[2] },
+    { id: 4, name: "Section 4 · Wise Owl Gazes Backwards", type: "section", settingsId: 4, cue: SECTION_CUES[3] },
+    { id: 5, name: "Section 5 · Sway the Head and Shake the Tail", type: "section", settingsId: 5, cue: SECTION_CUES[4] },
+    { id: 6, name: "Section 6 · Two Hands Hold the Feet", type: "section", settingsId: 6, cue: SECTION_CUES[5] },
+    { id: 7, name: "Section 7 · Clench Fists with Fierce Eyes", type: "section", settingsId: 7, cue: SECTION_CUES[6] },
+    { id: 8, name: "Section 8 · Bounce on the Heels", type: "section", settingsId: 8, cue: SECTION_CUES[7] },
+    { id: 9, name: "Closing · Ending", type: "ending", cue: ENDING_CUE },
+]
+
 export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJinViewProps) {
     const movementList = locale === "en" ? MOVEMENTS_EN : MOVEMENTS
 
     const { settings, getMovementDurations } = useBaDuanJinSettings()
-    const { playInhale, playExhale, stop: stopSound } = useBreathSound()
+    const { stop: stopSound } = useBreathSound()
 
     const [isPlaying, setIsPlaying] = useState(false)
     const [mediaMode, setMediaMode] = useState<MediaMode>("video")
@@ -88,7 +102,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     const [breathState, setBreathState] = useState<"inhale" | "exhale">("inhale")
     const [progress, setProgress] = useState(0)
     const [playedIntroFlags, setPlayedIntroFlags] = useState<boolean[]>(Array(movementList.length).fill(false))
-    const [currentVideoSrc, setCurrentVideoSrc] = useState<string>(SECTION_CUES[0]?.video ?? "")
+    const [currentVideoSrc, setCurrentVideoSrc] = useState<string>(movementList[0]?.cue.video ?? "")
 
     const timerRef = useRef<NodeJS.Timeout | null>(null)
     const progressTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -99,9 +113,9 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     const breathRemainingRef = useRef<number>(0)
     const isPlayingRef = useRef(false)
     const sectionIntroTargetRef = useRef<number | null>(null)
+    const [prefetchVideoSrc, setPrefetchVideoSrc] = useState<string>("")
 
     const currentMovement = movementList[currentMovementIndex]
-    const repetitions = settings.repetitions
 
     const t = {
         title: locale === "en" ? "Baduanjin timer" : "八段锦节奏练习",
@@ -136,7 +150,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         stopInstructionMedia()
         setMediaMode(nextMode)
         if (nextMode === "video") {
-            const cue = SECTION_CUES[currentMovementIndex]
+            const cue = movementList[currentMovementIndex]?.cue
             setCurrentVideoSrc((prev) => prev || cue?.video || "")
         }
     }
@@ -286,12 +300,6 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         breathRemainingRef.current = durationMs
         startProgressTimer(durationMs)
 
-        if (phaseType === "inhale") {
-            playInhale(durationMs / 1000)
-        } else {
-            playExhale(durationMs / 1000)
-        }
-
         timerRef.current = setTimeout(() => {
             setProgress(100)
             onComplete()
@@ -300,18 +308,20 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
 
     const startBreathCycle = (movementIdx: number, rep: number) => {
         if (!isPlayingRef.current) return
-        const durations = getMovementDurations(movementList[movementIdx].id)
+        const movement = movementList[movementIdx]
+        if (!movement || movement.type !== "section") return
+        const durations = getMovementDurations(movement.settingsId ?? movementIdx)
         startBreathPhase("inhale", durations.inhaleDuration * 1000, () => {
             if (!isPlayingRef.current) return
             startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
                 if (!isPlayingRef.current) return
-                const targetReps = movementIdx === 0 ? 3 : settings.repetitions
+                const targetReps = movement.settingsId === 1 ? 3 : settings.repetitions
                 if (rep >= targetReps) {
                     const nextMovement = movementIdx + 1
                     if (nextMovement >= movementList.length) {
-                        startEnding()
+                        handleStop()
                     } else {
-                        startSectionIntro(nextMovement)
+                        startMovementIntro(nextMovement)
                     }
                 } else {
                     setCurrentRep(rep + 1)
@@ -321,48 +331,59 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         })
     }
 
-    const startSectionIntro = (movementIdx: number, options?: { forceIntro?: boolean }) => {
+    const startMovementIntro = (movementIdx: number, options?: { forceIntro?: boolean }) => {
         if (!isPlayingRef.current) return
+        const movement = movementList[movementIdx]
+        if (!movement) {
+            handleStop()
+            return
+        }
+
         setCurrentMovementIndex(movementIdx)
         setCurrentRep(1)
         setBreathState("inhale")
+        sectionIntroTargetRef.current = movementIdx
 
-        const cue = SECTION_CUES[movementIdx] ?? { audio: `/audio/section-${movementIdx + 1}.mp3` }
+        const cue = movement.cue ?? { audio: `/audio/movement-${movementIdx + 1}.mp3` }
         if (cue.video) {
             setCurrentVideoSrc(cue.video)
         }
 
+        const isSection = movement.type === "section"
         const alreadyPlayed = playedIntroFlags[movementIdx]
-        if (alreadyPlayed && !options?.forceIntro) {
+        const shouldSkipIntro = isSection && alreadyPlayed && !options?.forceIntro
+
+        if (movement.type === "intro") {
+            setPhase("prepare")
+        } else if (movement.type === "ending") {
+            setPhase("ending")
+        } else {
+            setPhase("section-intro")
+        }
+
+        if (shouldSkipIntro) {
             startBreathCycle(movementIdx, 1)
             return
         }
 
-        sectionIntroTargetRef.current = movementIdx
-        setPhase("section-intro")
-
-        const nextFlags = [...playedIntroFlags]
-        nextFlags[movementIdx] = true
-        setPlayedIntroFlags(nextFlags)
+        if (isSection) {
+            const nextFlags = [...playedIntroFlags]
+            nextFlags[movementIdx] = true
+            setPlayedIntroFlags(nextFlags)
+            playInstructionCue(cue, () => {
+                startBreathCycle(movementIdx, 1)
+            })
+            return
+        }
 
         playInstructionCue(cue, () => {
-            startBreathCycle(movementIdx, 1)
+            const nextMovement = movementIdx + 1
+            if (movement.type === "intro" && nextMovement < movementList.length) {
+                startMovementIntro(nextMovement)
+            } else {
+                handleStop()
+            }
         })
-    }
-
-    const startPrepare = () => {
-        if (!isPlayingRef.current) return
-        setPhase("prepare")
-        playInstructionCue(PREPARE_CUE, () => startSectionIntro(0), { updateVideo: false })
-    }
-
-    const startEnding = () => {
-        if (!isPlayingRef.current) return
-        setPhase("ending")
-        clearTimers()
-        playInstructionCue(ENDING_CUE, () => {
-            handleStop()
-        }, { updateVideo: false })
     }
 
     const handleStart = () => {
@@ -377,7 +398,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
             setProgress(0)
             isPlayingRef.current = true
             setIsPlaying(true)
-            startPrepare()
+            startMovementIntro(0)
             return
         }
 
@@ -389,23 +410,21 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
             const mediaEl = currentInstructionElementRef.current
             if (mediaEl) {
                 mediaEl.play().catch(() => {
-                    if (phase === "prepare") startPrepare()
-                    else if (phase === "ending") startEnding()
-                    else if (phase === "section-intro" && sectionIntroTargetRef.current !== null) {
-                        startSectionIntro(sectionIntroTargetRef.current)
+                    if (sectionIntroTargetRef.current !== null) {
+                        startMovementIntro(sectionIntroTargetRef.current)
                     }
                 })
             } else {
-                if (phase === "prepare") startPrepare()
-                else if (phase === "ending") startEnding()
-                else if (phase === "section-intro" && sectionIntroTargetRef.current !== null) {
-                    startSectionIntro(sectionIntroTargetRef.current)
+                if (sectionIntroTargetRef.current !== null) {
+                    startMovementIntro(sectionIntroTargetRef.current)
                 }
             }
         }
 
         if (phase === "breath") {
-            const durations = getMovementDurations(movementList[currentMovementIndex].id)
+            const movement = movementList[currentMovementIndex]
+            if (!movement || movement.type !== "section") return
+            const durations = getMovementDurations(movement.settingsId ?? currentMovementIndex)
             const inhaleMs = durations.inhaleDuration * 1000
             const exhaleMs = durations.exhaleDuration * 1000
             const remaining = breathRemainingRef.current || (breathState === "inhale" ? inhaleMs : exhaleMs)
@@ -413,13 +432,13 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
             const repAtPause = currentRep
 
             const afterExhale = () => {
-                const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
+                const targetReps = movement.settingsId === 1 ? 3 : settings.repetitions
                 if (repAtPause >= targetReps) {
                     const nextMovement = currentMovementIndex + 1
                     if (nextMovement >= movementList.length) {
-                        startEnding()
+                        handleStop()
                     } else {
-                        startSectionIntro(nextMovement)
+                        startMovementIntro(nextMovement)
                     }
                 } else {
                     setCurrentRep((r) => r + 1)
@@ -471,7 +490,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         setProgress(0)
         setPlayedIntroFlags(Array(movementList.length).fill(false))
         sectionIntroTargetRef.current = null
-        setCurrentVideoSrc(SECTION_CUES[0]?.video || "")
+        setCurrentVideoSrc(movementList[0]?.cue.video || "")
     }
 
     const handleJump = (direction: -1 | 1) => {
@@ -486,27 +505,25 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
 
         isPlayingRef.current = true
         setIsPlaying(true)
-        startSectionIntro(target, { forceIntro: true })
+        startMovementIntro(target, { forceIntro: true })
     }
 
     useEffect(() => {
         if (mediaMode !== "video") return
-        const cue = SECTION_CUES[currentMovementIndex]
+        const cue = movementList[currentMovementIndex]?.cue
         if (cue?.video && currentVideoSrc !== cue.video) {
             setCurrentVideoSrc(cue.video)
         }
+        const nextMovement = movementList[currentMovementIndex + 1]
+        const nextSrc = nextMovement?.cue?.video ?? ""
+        setPrefetchVideoSrc(nextSrc || "")
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentMovementIndex, mediaMode, currentVideoSrc])
 
     const isPreparePhase = phase === "prepare"
     const isEndingPhase = phase === "ending"
-    const headerTitle = isPreparePhase ? t.intro : isEndingPhase ? t.outro : currentMovement.name
-    const headerSub =
-        isPreparePhase || isEndingPhase
-            ? isPreparePhase
-                ? t.intro
-                : t.outro
-            : t.currentMovementLabel
+    const headerTitle = currentMovement.name
+    const headerSub = isPreparePhase ? t.intro : isEndingPhase ? t.outro : t.currentMovementLabel
 
     return (
         <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
@@ -585,6 +602,14 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
                                 >
                                     {t.videoNotSupported}
                                 </video>
+                                {prefetchVideoSrc ? (
+                                    <video
+                                        className="hidden"
+                                        src={prefetchVideoSrc}
+                                        preload="metadata"
+                                        aria-hidden="true"
+                                    />
+                                ) : null}
                             </div>
                         ) : (
                             <div className="mt-4 flex items-center justify-between rounded-2xl border bg-muted/40 px-4 py-3 text-sm">
