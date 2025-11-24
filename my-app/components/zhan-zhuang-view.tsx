@@ -10,14 +10,27 @@ const SEGMENT_DURATION = 15 * 60 // 15 minutes in seconds
 
 type ZhanZhuangViewProps = {
     showBackButton?: boolean
+    locale?: "zh" | "en"
 }
 
-export function ZhanZhuangView({ showBackButton = false }: ZhanZhuangViewProps) {
+export function ZhanZhuangView({ showBackButton = false, locale = "zh" }: ZhanZhuangViewProps) {
     const [isPlaying, setIsPlaying] = useState(false)
     const [elapsedTime, setElapsedTime] = useState(0)
     const [currentSegment, setCurrentSegment] = useState(1)
     const audioRef = useRef<HTMLAudioElement | null>(null)
     const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+    const t = {
+        title: locale === "en" ? "Zhan Zhuang timer" : "站桩练习",
+        segmentLabel: locale === "en" ? `Segment ${currentSegment}` : `第 ${currentSegment} 段`,
+        segmentHint: locale === "en" ? "Each segment 15 minutes" : "每段 15 分钟",
+        pause: locale === "en" ? "Pause" : "暂停",
+        start: locale === "en" ? "Start" : "开始",
+        note:
+            locale === "en"
+                ? "Tip: background audio loops every 15 minutes; you can stop when the music ends."
+                : "提示：音频每循环一次为 15 分钟，你可以根据音乐结束来判断时长。",
+    }
 
     const clearTimer = () => {
         if (timerRef.current) {
@@ -78,7 +91,7 @@ export function ZhanZhuangView({ showBackButton = false }: ZhanZhuangViewProps) 
             )}
 
             <div className="text-center mb-8">
-                <h1 className="text-3xl font-bold mb-2">站桩练习</h1>
+                <h1 className="text-3xl font-bold mb-2">{t.title}</h1>
             </div>
 
             <Card className="mb-8 overflow-hidden border-none shadow-lg bg-card/50 backdrop-blur-sm">
@@ -97,12 +110,12 @@ export function ZhanZhuangView({ showBackButton = false }: ZhanZhuangViewProps) 
                         <div className="relative z-10 w-full h-full rounded-full border-8 border-primary/30 flex flex-col items-center justify-center bg-background/50 backdrop-blur-md">
                             <div className="text-center">
                                 <div className="text-sm text-muted-foreground mb-1 font-medium uppercase tracking-wider">
-                                    第 {currentSegment} 段
+                                    {t.segmentLabel}
                                 </div>
                                 <div className="text-5xl font-bold tabular-nums tracking-tight text-primary">
                                     {formatTime(elapsedTime)}
                                 </div>
-                                <div className="text-xs text-muted-foreground mt-2">每段 15 分钟</div>
+                                <div className="text-xs text-muted-foreground mt-2">{t.segmentHint}</div>
                             </div>
                         </div>
                     </div>
@@ -117,14 +130,14 @@ export function ZhanZhuangView({ showBackButton = false }: ZhanZhuangViewProps) 
                             aria-pressed={isPlaying}
                         >
                             {isPlaying ? <Pause className="h-8 w-8" /> : <Play className="h-8 w-8 ml-1" />}
-                            <span className="sr-only">{isPlaying ? "暂停" : "开始"}</span>
+                            <span className="sr-only">{isPlaying ? t.pause : t.start}</span>
                         </Button>
                     </div>
                 </CardContent>
             </Card>
 
             <div className="text-center text-sm text-muted-foreground bg-muted/30 p-4 rounded-lg">
-                <p>提示：音乐每循环一次为 15 分钟，您可以根据音乐结束来判断时间。</p>
+                <p>{t.note}</p>
             </div>
         </div>
     )

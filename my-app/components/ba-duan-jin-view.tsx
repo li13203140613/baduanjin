@@ -1,7 +1,7 @@
-"use client"
+﻿"use client"
 
 import type React from "react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { BaDuanJinSettingsDialog } from "@/components/ba-duan-jin-settings-dialog"
 import { BackButton } from "@/components/back-button"
 import { Button } from "@/components/ui/button"
@@ -9,49 +9,246 @@ import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { useBaDuanJinSettings } from "@/hooks/useBaDuanJinSettings"
 import { useBreathSound } from "@/hooks/useBreathSound"
-import { Pause, Play, Settings2 } from "lucide-react"
+import { Clapperboard, Headphones, Pause, Play, Settings2 } from "lucide-react"
 
 const MOVEMENTS = [
-    { id: 1, name: "第一式：双手托天理三焦" },
-    { id: 2, name: "第二式：左右开弓似射雕" },
-    { id: 3, name: "第三式：调理脾胃须单举" },
-    { id: 4, name: "第四式：五劳七伤往后瞧" },
-    { id: 5, name: "第五式：摇头摆尾去心火" },
-    { id: 6, name: "第六式：两手攀足固肾腰" },
-    { id: 7, name: "第七式：攒拳怒目增气力" },
-    { id: 8, name: "第八式：背后七颠百病消" },
+    { id: 1, name: "双手托天理三焦" },
+    { id: 2, name: "左右开弓似射雕" },
+    { id: 3, name: "调理脾胃须单举" },
+    { id: 4, name: "五劳七伤往后瞧" },
+    { id: 5, name: "摇头摆尾去心火" },
+    { id: 6, name: "两手攀足固肾腰" },
+    { id: 7, name: "攒拳怒目增气力" },
+    { id: 8, name: "背后七颠百病消" },
+]
+
+const MOVEMENTS_EN = [
+    { id: 1, name: "Two Hands Hold up the Heavens" },
+    { id: 2, name: "Drawing the Bow" },
+    { id: 3, name: "Separate Heaven and Earth" },
+    { id: 4, name: "Wise Owl Gazes Backwards" },
+    { id: 5, name: "Sway the Head and Shake the Tail" },
+    { id: 6, name: "Two Hands Hold the Feet" },
+    { id: 7, name: "Clench Fists with Fierce Eyes" },
+    { id: 8, name: "Bounce on the Heels" },
 ]
 
 type BaDuanJinViewProps = {
     showBackButton?: boolean
+    locale?: "zh" | "en"
 }
 
 type Phase = "idle" | "prepare" | "section-intro" | "breath" | "ending"
+type MediaMode = "video" | "audio"
 
-export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
+type InstructionCue = {
+    audio?: string
+    video?: string
+    fallbackAudio?: string
+}
+
+const cuePath = (index: number, ext: "MP3" | "mp4") =>
+    `/audio/${encodeURIComponent(`八段锦音效${index}`)}/${encodeURIComponent(`八段锦音效${index}`)}.${ext}`
+
+const PREPARE_CUE: InstructionCue = {
+    audio: cuePath(1, "MP3"),
+    video: cuePath(1, "mp4"),
+}
+
+const SECTION_CUES: InstructionCue[] = [
+    { audio: cuePath(2, "MP3"), video: cuePath(2, "mp4") },
+    { audio: cuePath(3, "MP3"), video: cuePath(3, "mp4") },
+    { audio: cuePath(4, "MP3"), video: cuePath(4, "mp4") },
+    { audio: cuePath(5, "MP3"), video: cuePath(5, "mp4") },
+    { audio: cuePath(6, "MP3"), video: cuePath(6, "mp4") },
+    { audio: cuePath(7, "MP3"), video: cuePath(7, "mp4") },
+    { audio: cuePath(8, "MP3"), video: cuePath(8, "mp4") },
+    { audio: cuePath(9, "MP3"), video: cuePath(9, "mp4") },
+]
+
+const ENDING_CUE: InstructionCue = {
+    audio: cuePath(10, "MP3"),
+    video: cuePath(10, "mp4"),
+}
+
+export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJinViewProps) {
+    const movementList = locale === "en" ? MOVEMENTS_EN : MOVEMENTS
+
     const { settings, getMovementDurations } = useBaDuanJinSettings()
     const { playInhale, playExhale, stop: stopSound } = useBreathSound()
 
     const [isPlaying, setIsPlaying] = useState(false)
+    const [mediaMode, setMediaMode] = useState<MediaMode>("video")
     const [phase, setPhase] = useState<Phase>("idle")
     const [currentMovementIndex, setCurrentMovementIndex] = useState(0)
     const [currentRep, setCurrentRep] = useState(1)
     const [breathState, setBreathState] = useState<"inhale" | "exhale">("inhale")
     const [progress, setProgress] = useState(0)
-    const [statusText, setStatusText] = useState("待开始")
-    const [playedIntroFlags, setPlayedIntroFlags] = useState<boolean[]>(Array(MOVEMENTS.length).fill(false))
+    const [playedIntroFlags, setPlayedIntroFlags] = useState<boolean[]>(Array(movementList.length).fill(false))
+    const [currentVideoSrc, setCurrentVideoSrc] = useState<string>(SECTION_CUES[0]?.video ?? "")
 
     const timerRef = useRef<NodeJS.Timeout | null>(null)
     const progressTimerRef = useRef<NodeJS.Timeout | null>(null)
     const instructionAudioRef = useRef<HTMLAudioElement | null>(null)
+    const instructionVideoRef = useRef<HTMLVideoElement | null>(null)
+    const currentInstructionElementRef = useRef<HTMLMediaElement | null>(null)
     const phaseEndAtRef = useRef<number>(0)
     const breathRemainingRef = useRef<number>(0)
     const isPlayingRef = useRef(false)
     const sectionIntroTargetRef = useRef<number | null>(null)
 
-    const currentMovement = MOVEMENTS[currentMovementIndex]
+    const currentMovement = movementList[currentMovementIndex]
     const repetitions = settings.repetitions
-    const currentSectionReps = currentMovementIndex === 0 ? 3 : repetitions // 第一节 3 次，其余按设置
+
+    const t = {
+        title: locale === "en" ? "Baduanjin timer" : "八段锦节奏练习",
+        settings: locale === "en" ? "Settings" : "设置",
+        currentMovementLabel:
+            locale === "en"
+                ? `Current movement (${currentMovementIndex + 1}/${movementList.length})`
+                : `当前动作 (${currentMovementIndex + 1}/${movementList.length})`,
+        mediaMode: locale === "en" ? "Media mode" : "媒体模式",
+        videoMode: locale === "en" ? "Video follow" : "视频跟练",
+        audioMode: locale === "en" ? "Audio only" : "纯音频",
+        videoNotSupported:
+            locale === "en" ? "Your browser does not support video playback." : "你的浏览器不支持视频播放。",
+        audioModeLabel: locale === "en" ? "Audio follow mode" : "音频跟练模式",
+        audioModeHint: locale === "en" ? "Play a new segment audio cue" : "播放新的分节口令音频",
+        inhale: locale === "en" ? "Inhale" : "吸气",
+        exhale: locale === "en" ? "Exhale" : "呼气",
+        durationLabel: locale === "en" ? "Duration" : "时长",
+        prev: locale === "en" ? "Previous" : "上一节",
+        next: locale === "en" ? "Next" : "下一节",
+        stop: locale === "en" ? "Stop" : "停止",
+    }
+
+    const clearTimers = () => {
+        if (timerRef.current) clearTimeout(timerRef.current as unknown as number)
+        if (progressTimerRef.current) clearInterval(progressTimerRef.current as unknown as number)
+    }
+
+    const handleMediaModeChange = (nextMode: MediaMode) => {
+        stopInstructionMedia()
+        setMediaMode(nextMode)
+        if (nextMode === "video") {
+            const cue = SECTION_CUES[currentMovementIndex]
+            setCurrentVideoSrc((prev) => prev || cue?.video || "")
+        }
+    }
+
+    const ensureInstructionAudio = () => {
+        if (!instructionAudioRef.current) {
+            instructionAudioRef.current = new Audio()
+        }
+        return instructionAudioRef.current
+    }
+
+    // eslint-disable-next-line react-hooks/preserve-manual-memoization
+    const stopInstructionMedia = useCallback(() => {
+        if (currentInstructionElementRef.current) {
+            try {
+                currentInstructionElementRef.current.pause()
+            } catch (e) {
+                // ignore
+            }
+            if ("currentTime" in currentInstructionElementRef.current) {
+                currentInstructionElementRef.current.currentTime = 0
+            }
+        }
+        if (instructionAudioRef.current) {
+            instructionAudioRef.current.pause()
+            instructionAudioRef.current.currentTime = 0
+        }
+        if (instructionVideoRef.current) {
+            instructionVideoRef.current.pause()
+            instructionVideoRef.current.currentTime = 0
+        }
+        currentInstructionElementRef.current = null
+    }, [])
+
+    const playInstructionCue = (cue: InstructionCue, onEnded: () => void, options?: { updateVideo?: boolean }) => {
+        const audioEl = ensureInstructionAudio()
+        const videoEl = instructionVideoRef.current
+
+        const candidates: { element: HTMLMediaElement; src: string; type: "audio" | "video" }[] = []
+        if (mediaMode === "video" && cue.video && videoEl) {
+            candidates.push({ element: videoEl, src: cue.video, type: "video" })
+        }
+        if (mediaMode === "video" && cue.audio) {
+            candidates.push({ element: audioEl, src: cue.audio, type: "audio" })
+        }
+        if (mediaMode === "audio" && cue.audio) {
+            candidates.push({ element: audioEl, src: cue.audio, type: "audio" })
+        }
+        if (cue.fallbackAudio) {
+            candidates.push({ element: audioEl, src: cue.fallbackAudio, type: "audio" })
+        }
+
+        if (candidates.length === 0) {
+            onEnded()
+            return
+        }
+
+        stopInstructionMedia()
+
+        const tryPlay = (index: number) => {
+            if (index >= candidates.length) {
+                currentInstructionElementRef.current = null
+                onEnded()
+                return
+            }
+
+            const { element, src, type } = candidates[index]
+            currentInstructionElementRef.current = element
+
+            if (type === "video" && options?.updateVideo !== false) {
+                setCurrentVideoSrc(src)
+            }
+
+            element.onended = () => {
+                if (!isPlayingRef.current) return
+                currentInstructionElementRef.current = null
+                onEnded()
+            }
+            element.onerror = () => {
+                if (!isPlayingRef.current) return
+                tryPlay(index + 1)
+            }
+
+            try {
+                element.pause()
+                element.currentTime = 0
+                element.src = src
+                if (type === "video") {
+                    element.load()
+                }
+            } catch (e) {
+                tryPlay(index + 1)
+                return
+            }
+
+            if (type === "video") {
+                const onReady = () => {
+                    element.removeEventListener("loadeddata", onReady)
+                    element
+                        .play()
+                        .then(() => {})
+                        .catch(() => {
+                            if (!isPlayingRef.current) return
+                            tryPlay(index + 1)
+                        })
+                }
+                element.addEventListener("loadeddata", onReady, { once: true })
+            } else {
+                element.play().catch(() => {
+                    if (!isPlayingRef.current) return
+                    tryPlay(index + 1)
+                })
+            }
+        }
+
+        tryPlay(0)
+    }
 
     useEffect(() => {
         isPlayingRef.current = isPlaying
@@ -61,38 +258,9 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         return () => {
             clearTimers()
             stopSound()
-            instructionAudioRef.current?.pause()
+            stopInstructionMedia()
         }
-    }, [stopSound])
-
-    const clearTimers = () => {
-        if (timerRef.current) clearTimeout(timerRef.current as unknown as number)
-        if (progressTimerRef.current) clearInterval(progressTimerRef.current as unknown as number)
-    }
-
-    const playInstructionAudio = (src: string, onEnded: () => void) => {
-        if (!instructionAudioRef.current) {
-            instructionAudioRef.current = new Audio()
-        }
-        const audio = instructionAudioRef.current
-        audio.pause()
-        audio.currentTime = 0
-        audio.src = src
-        audio.loop = false
-        audio.onended = () => {
-            if (!isPlayingRef.current) return
-            onEnded()
-        }
-        audio.onerror = () => {
-            if (!isPlayingRef.current) return
-            onEnded()
-        }
-        // 复用同一个 Audio 元素，提升移动端连播成功率
-        audio
-            .play()
-            .then(() => {})
-            .catch(() => onEnded())
-    }
+    }, [stopInstructionMedia, stopSound])
 
     const startProgressTimer = (durationMs: number) => {
         if (progressTimerRef.current) clearInterval(progressTimerRef.current as unknown as number)
@@ -108,7 +276,6 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         clearTimers()
         setBreathState(phaseType)
         setPhase("breath")
-        setStatusText(`第 ${currentMovementIndex + 1} 节 · ${phaseType === "inhale" ? "吸气" : "呼气"}`)
 
         phaseEndAtRef.current = Date.now() + durationMs
         breathRemainingRef.current = durationMs
@@ -128,7 +295,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
 
     const startBreathCycle = (movementIdx: number, rep: number) => {
         if (!isPlayingRef.current) return
-        const durations = getMovementDurations(MOVEMENTS[movementIdx].id)
+        const durations = getMovementDurations(movementList[movementIdx].id)
         startBreathPhase("inhale", durations.inhaleDuration * 1000, () => {
             if (!isPlayingRef.current) return
             startBreathPhase("exhale", durations.exhaleDuration * 1000, () => {
@@ -136,7 +303,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                 const targetReps = movementIdx === 0 ? 3 : settings.repetitions
                 if (rep >= targetReps) {
                     const nextMovement = movementIdx + 1
-                    if (nextMovement >= MOVEMENTS.length) {
+                    if (nextMovement >= movementList.length) {
                         startEnding()
                     } else {
                         startSectionIntro(nextMovement)
@@ -149,27 +316,31 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         })
     }
 
-    const startSectionIntro = (movementIdx: number) => {
+    const startSectionIntro = (movementIdx: number, options?: { forceIntro?: boolean }) => {
         if (!isPlayingRef.current) return
         setCurrentMovementIndex(movementIdx)
         setCurrentRep(1)
         setBreathState("inhale")
 
+        const cue = SECTION_CUES[movementIdx] ?? { audio: `/audio/section-${movementIdx + 1}.mp3` }
+        if (cue.video) {
+            setCurrentVideoSrc(cue.video)
+        }
+
         const alreadyPlayed = playedIntroFlags[movementIdx]
-        if (alreadyPlayed) {
+        if (alreadyPlayed && !options?.forceIntro) {
             startBreathCycle(movementIdx, 1)
             return
         }
 
         sectionIntroTargetRef.current = movementIdx
         setPhase("section-intro")
-        setStatusText(`第 ${movementIdx + 1} 节提示…`)
 
         const nextFlags = [...playedIntroFlags]
         nextFlags[movementIdx] = true
         setPlayedIntroFlags(nextFlags)
 
-        playInstructionAudio(`/audio/section-${movementIdx + 1}.mp3`, () => {
+        playInstructionCue(cue, () => {
             startBreathCycle(movementIdx, 1)
         })
     }
@@ -177,26 +348,24 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
     const startPrepare = () => {
         if (!isPlayingRef.current) return
         setPhase("prepare")
-        setStatusText("预备中…")
-        playInstructionAudio("/audio/prepare.mp3", () => startSectionIntro(0))
+        playInstructionCue(PREPARE_CUE, () => startSectionIntro(0), { updateVideo: false })
     }
 
     const startEnding = () => {
         if (!isPlayingRef.current) return
         setPhase("ending")
-        setStatusText("结束提示…")
         clearTimers()
-        playInstructionAudio("/audio/ending.mp3", () => {
+        playInstructionCue(ENDING_CUE, () => {
             handleStop()
-        })
+        }, { updateVideo: false })
     }
 
     const handleStart = () => {
         if (isPlaying) return
 
-        // 初次开始
+        // 第一次开始
         if (phase === "idle") {
-            setPlayedIntroFlags(Array(MOVEMENTS.length).fill(false))
+            setPlayedIntroFlags(Array(movementList.length).fill(false))
             setCurrentMovementIndex(0)
             setCurrentRep(1)
             setBreathState("inhale")
@@ -212,23 +381,29 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         setIsPlaying(true)
 
         if (phase === "prepare" || phase === "section-intro" || phase === "ending") {
-            if (instructionAudioRef.current) {
-                instructionAudioRef.current.play().catch(() => {
+            const mediaEl = currentInstructionElementRef.current
+            if (mediaEl) {
+                mediaEl.play().catch(() => {
                     if (phase === "prepare") startPrepare()
                     else if (phase === "ending") startEnding()
                     else if (phase === "section-intro" && sectionIntroTargetRef.current !== null) {
                         startSectionIntro(sectionIntroTargetRef.current)
                     }
                 })
+            } else {
+                if (phase === "prepare") startPrepare()
+                else if (phase === "ending") startEnding()
+                else if (phase === "section-intro" && sectionIntroTargetRef.current !== null) {
+                    startSectionIntro(sectionIntroTargetRef.current)
+                }
             }
         }
 
         if (phase === "breath") {
-            const now = Date.now()
-            const durations = getMovementDurations(MOVEMENTS[currentMovementIndex].id)
+            const durations = getMovementDurations(movementList[currentMovementIndex].id)
             const inhaleMs = durations.inhaleDuration * 1000
             const exhaleMs = durations.exhaleDuration * 1000
-            const remaining = Math.max(phaseEndAtRef.current - now, 0) || breathRemainingRef.current
+            const remaining = breathRemainingRef.current || (breathState === "inhale" ? inhaleMs : exhaleMs)
             const resumeBreathState = breathState
             const repAtPause = currentRep
 
@@ -236,7 +411,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                 const targetReps = currentMovementIndex === 0 ? 3 : settings.repetitions
                 if (repAtPause >= targetReps) {
                     const nextMovement = currentMovementIndex + 1
-                    if (nextMovement >= MOVEMENTS.length) {
+                    if (nextMovement >= movementList.length) {
                         startEnding()
                     } else {
                         startSectionIntro(nextMovement)
@@ -269,8 +444,8 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         setIsPlaying(false)
         clearTimers()
         stopSound()
-        if (instructionAudioRef.current && !instructionAudioRef.current.paused) {
-            instructionAudioRef.current.pause()
+        if (currentInstructionElementRef.current && !currentInstructionElementRef.current.paused) {
+            currentInstructionElementRef.current.pause()
         }
         if (phase === "breath") {
             breathRemainingRef.current = Math.max(phaseEndAtRef.current - Date.now(), 0)
@@ -282,16 +457,41 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
         setIsPlaying(false)
         clearTimers()
         stopSound()
-        instructionAudioRef.current?.pause()
+        stopInstructionMedia()
         instructionAudioRef.current = null
         setPhase("idle")
         setCurrentMovementIndex(0)
         setCurrentRep(1)
         setBreathState("inhale")
         setProgress(0)
-        setStatusText("待开始")
-        setPlayedIntroFlags(Array(MOVEMENTS.length).fill(false))
+        setPlayedIntroFlags(Array(movementList.length).fill(false))
+        sectionIntroTargetRef.current = null
+        setCurrentVideoSrc(SECTION_CUES[0]?.video || "")
     }
+
+    const handleJump = (direction: -1 | 1) => {
+        const target = currentMovementIndex + direction
+        if (target < 0 || target >= movementList.length) return
+
+        clearTimers()
+        stopSound()
+        stopInstructionMedia()
+        breathRemainingRef.current = 0
+        phaseEndAtRef.current = 0
+
+        isPlayingRef.current = true
+        setIsPlaying(true)
+        startSectionIntro(target, { forceIntro: true })
+    }
+
+    useEffect(() => {
+        if (mediaMode !== "video") return
+        const cue = SECTION_CUES[currentMovementIndex]
+        if (cue?.video && currentVideoSrc !== cue.video) {
+            setCurrentVideoSrc(cue.video)
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentMovementIndex, mediaMode, currentVideoSrc])
 
     return (
         <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
@@ -303,13 +503,13 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
 
             <div className="flex items-center justify-between mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold mb-2">八段锦练习</h1>
+                    <h1 className="text-3xl font-bold mb-2">{t.title}</h1>
                 </div>
                 <BaDuanJinSettingsDialog
                     trigger={
                         <Button variant="secondary" className="inline-flex items-center gap-2">
                             <Settings2 className="h-4 w-4" />
-                            设置
+                            {t.settings}
                         </Button>
                     }
                 />
@@ -319,82 +519,142 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                 <div className="absolute top-0 left-0 w-full h-1 bg-muted">
                     <div
                         className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${(currentMovementIndex / MOVEMENTS.length) * 100}%` }}
+                        style={{ width: `${(currentMovementIndex / movementList.length) * 100}%` }}
                     />
                 </div>
 
                 <CardContent className="p-8 md:p-12 flex flex-col items-center justify-center min-h-[520px]">
                     <div className="text-center mb-12 w-full">
                         <div className="text-sm font-medium text-primary mb-2 uppercase tracking-wider">
-                            当前动作 ({currentMovementIndex + 1}/{MOVEMENTS.length})
+                            {t.currentMovementLabel}
                         </div>
                         <h2 className="text-3xl md:text-4xl font-bold mb-4 text-balance">{currentMovement.name}</h2>
                     </div>
 
-                    <div className="relative w-64 h-64 mb-12 flex items-center justify-center">
-                        <div
-                            className={cn(
-                                "absolute inset-0 rounded-full border-4 transition-all duration-1000",
-                                breathState === "inhale" ? "border-primary/50 scale-110" : "border-primary/20 scale-90",
-                            )}
-                        />
-                        <div
-                            className={cn(
-                                "w-48 h-48 rounded-full flex items-center justify-center transition-all duration-1000 shadow-2xl",
-                                breathState === "inhale"
-                                    ? "bg-primary text-primary-foreground scale-110"
-                                    : "bg-muted text-muted-foreground scale-90",
-                            )}
-                        >
-                            <div className="text-center">
-                                <div className="text-2xl font-bold mb-1">{breathState === "inhale" ? "吸气" : "呼气"}</div>
-                                <div className="mt-2 text-xs text-muted-foreground">
-                                    {breathState === "inhale"
-                                        ? `时长 ${getMovementDurations(currentMovement.id).inhaleDuration} 秒`
-                                        : `时长 ${getMovementDurations(currentMovement.id).exhaleDuration} 秒`}
-                                </div>
+                    <div className="w-full mb-10">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Clapperboard className="h-4 w-4" />
+                                <span>{t.mediaMode}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant={mediaMode === "video" ? "default" : "outline"}
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() => handleMediaModeChange("video")}
+                                >
+                                    <Clapperboard className="h-4 w-4" />
+                                    {t.videoMode}
+                                </Button>
+                                <Button
+                                    variant={mediaMode === "audio" ? "default" : "outline"}
+                                    size="sm"
+                                    className="flex items-center gap-2"
+                                    onClick={() => handleMediaModeChange("audio")}
+                                >
+                                    <Headphones className="h-4 w-4" />
+                                    {t.audioMode}
+                                </Button>
                             </div>
                         </div>
 
-                        <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
-                            <circle
-                                cx="128"
-                                cy="128"
-                                r="120"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                className="text-muted/20"
-                            />
-                            <circle
-                                cx="128"
-                                cy="128"
-                                r="120"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="4"
-                                className="text-primary transition-all duration-75"
-                                strokeDasharray={2 * Math.PI * 120}
-                                strokeDashoffset={2 * Math.PI * 120 * (1 - progress / 100)}
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        {mediaMode === "video" ? (
+                            <div className="mt-4 overflow-hidden rounded-2xl border bg-black/80 shadow-inner">
+                                <video
+                                    key={currentVideoSrc}
+                                    ref={instructionVideoRef}
+                                    src={currentVideoSrc}
+                                    controls
+                                    playsInline
+                                    preload="metadata"
+                                    className="w-full aspect-video"
+                                >
+                                    {t.videoNotSupported}
+                                </video>
+                            </div>
+                        ) : (
+                            <div className="mt-4 flex items-center justify-between rounded-2xl border bg-muted/40 px-4 py-3 text-sm">
+                                <div className="flex items-center gap-2">
+                                    <Headphones className="h-4 w-4 text-primary" />
+                                    <span className="font-medium text-foreground">{t.audioModeLabel}</span>
+                                </div>
+                                <span className="text-muted-foreground text-xs">{t.audioModeHint}</span>
+                            </div>
+                        )}
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 mb-8 w-full sm:w-auto">
-                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg flex-1 sm:flex-none">
-                            <div className="text-xs text-muted-foreground mb-1">当前次数</div>
-                            <div className="text-2xl font-bold font-mono">
-                                {currentRep} <span className="text-sm text-muted-foreground">/ {currentSectionReps}</span>
+                    {mediaMode === "audio" && (
+                        <div className="relative w-64 h-64 mb-12 flex items-center justify-center">
+                            <div
+                                className={cn(
+                                    "absolute inset-0 rounded-full border-4 transition-all duration-1000",
+                                    breathState === "inhale"
+                                        ? "border-primary/50 scale-110"
+                                        : "border-primary/20 scale-90",
+                                )}
+                            />
+                            <div
+                                className={cn(
+                                    "w-48 h-48 rounded-full flex items-center justify-center transition-all duration-1000 shadow-2xl",
+                                    breathState === "inhale"
+                                        ? "bg-primary text-primary-foreground scale-110"
+                                        : "bg-muted text-muted-foreground scale-90",
+                                )}
+                            >
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold mb-1">{breathState === "inhale" ? t.inhale : t.exhale}</div>
+                                    <div className="mt-2 text-xs text-muted-foreground">
+                                        {breathState === "inhale"
+                                            ? `${t.durationLabel} ${getMovementDurations(currentMovement.id).inhaleDuration}${locale === "en" ? " s" : " 秒"}`
+                                            : `${t.durationLabel} ${getMovementDurations(currentMovement.id).exhaleDuration}${locale === "en" ? " s" : " 秒"}`}
+                                    </div>
+                                </div>
                             </div>
+
+                            <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none">
+                                <circle
+                                    cx="128"
+                                    cy="128"
+                                    r="120"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                    className="text-muted/20"
+                                />
+                                <circle
+                                    cx="128"
+                                    cy="128"
+                                    r="120"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    strokeWidth="4"
+                                    className="text-primary transition-all duration-75"
+                                    strokeDasharray={2 * Math.PI * 120}
+                                    strokeDashoffset={2 * Math.PI * 120 * (1 - progress / 100)}
+                                    strokeLinecap="round"
+                                />
+                            </svg>
                         </div>
-                        <div className="text-center px-6 py-3 bg-muted/30 rounded-lg flex-1 sm:flex-none">
-                            <div className="text-xs text-muted-foreground mb-1">状态</div>
-                            <div className="text-sm font-medium text-muted-foreground min-w-[140px]">{statusText}</div>
-                        </div>
-                        <div className="text-xs text-muted-foreground text-center sm:text-left">
-                            第一节固定 3 次，其余按“重复次数”设置
-                        </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                        <Button
+                            variant="outline"
+                            onClick={() => handleJump(-1)}
+                            disabled={currentMovementIndex === 0}
+                            className="min-w-[96px]"
+                        >
+                            {t.prev}
+                        </Button>
+                        <Button
+                            variant="outline"
+                            onClick={() => handleJump(1)}
+                            disabled={currentMovementIndex === movementList.length - 1}
+                            className="min-w-[96px]"
+                        >
+                            {t.next}
+                        </Button>
                     </div>
 
                     <div className="flex items-center gap-6">
@@ -421,7 +681,7 @@ export function BaDuanJinView({ showBackButton = false }: BaDuanJinViewProps) {
                             className="text-sm text-muted-foreground hover:text-foreground"
                             onClick={handleStop}
                         >
-                            停止
+                            {t.stop}
                         </Button>
                     </div>
                 </CardContent>
