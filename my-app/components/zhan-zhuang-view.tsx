@@ -7,6 +7,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Pause, Play } from "lucide-react"
 
 const SEGMENT_DURATION = 15 * 60 // 15 minutes in seconds
+const mediaBase =
+    (process.env.NEXT_PUBLIC_VIDEO_BASE_URL && process.env.NEXT_PUBLIC_VIDEO_BASE_URL.replace(/\/$/, "")) || "/audio"
 
 type ZhanZhuangViewProps = {
     showBackButton?: boolean
@@ -40,7 +42,7 @@ export function ZhanZhuangView({ showBackButton = false, locale = "zh" }: ZhanZh
     }
 
     useEffect(() => {
-        audioRef.current = new Audio("/audio/meditation-music.mp3")
+        audioRef.current = new Audio(`${mediaBase}/meditation-music.mp3`)
         audioRef.current.loop = true
 
         return () => {
