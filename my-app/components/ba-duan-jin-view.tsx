@@ -47,28 +47,28 @@ type InstructionCue = {
     fallbackAudio?: string
 }
 
-const cuePath = (index: number, ext: "MP3" | "mp4") =>
-    `/audio/${encodeURIComponent(`八段锦音效${index}`)}/${encodeURIComponent(`八段锦音效${index}`)}.${ext}`
+const namedCuePath = (folder: string, base: string, ext: "MP3" | "mp4") =>
+    `/audio/${encodeURIComponent(folder)}/${encodeURIComponent(base)}.${ext}`
 
 const PREPARE_CUE: InstructionCue = {
-    audio: cuePath(1, "MP3"),
-    video: cuePath(1, "mp4"),
+    audio: namedCuePath("prepare", "八段锦音效1", "MP3"),
+    video: namedCuePath("prepare", "八段锦音效1", "mp4"),
 }
 
 const SECTION_CUES: InstructionCue[] = [
-    { audio: cuePath(2, "MP3"), video: cuePath(2, "mp4") },
-    { audio: cuePath(3, "MP3"), video: cuePath(3, "mp4") },
-    { audio: cuePath(4, "MP3"), video: cuePath(4, "mp4") },
-    { audio: cuePath(5, "MP3"), video: cuePath(5, "mp4") },
-    { audio: cuePath(6, "MP3"), video: cuePath(6, "mp4") },
-    { audio: cuePath(7, "MP3"), video: cuePath(7, "mp4") },
-    { audio: cuePath(8, "MP3"), video: cuePath(8, "mp4") },
-    { audio: cuePath(9, "MP3"), video: cuePath(9, "mp4") },
+    { audio: namedCuePath("section-1", "八段锦音效2", "MP3"), video: namedCuePath("section-1", "八段锦音效2", "mp4") },
+    { audio: namedCuePath("section-2", "八段锦音效3", "MP3"), video: namedCuePath("section-2", "八段锦音效3", "mp4") },
+    { audio: namedCuePath("section-3", "八段锦音效4", "MP3"), video: namedCuePath("section-3", "八段锦音效4", "mp4") },
+    { audio: namedCuePath("section-4", "八段锦音效5", "MP3"), video: namedCuePath("section-4", "八段锦音效5", "mp4") },
+    { audio: namedCuePath("section-5", "八段锦音效6", "MP3"), video: namedCuePath("section-5", "八段锦音效6", "mp4") },
+    { audio: namedCuePath("section-6", "八段锦音效7", "MP3"), video: namedCuePath("section-6", "八段锦音效7", "mp4") },
+    { audio: namedCuePath("section-7", "八段锦音效8", "MP3"), video: namedCuePath("section-7", "八段锦音效8", "mp4") },
+    { audio: namedCuePath("section-8", "八段锦音效9", "MP3"), video: namedCuePath("section-8", "八段锦音效9", "mp4") },
 ]
 
 const ENDING_CUE: InstructionCue = {
-    audio: cuePath(10, "MP3"),
-    video: cuePath(10, "mp4"),
+    audio: namedCuePath("ending", "八段锦音效10", "MP3"),
+    video: namedCuePath("ending", "八段锦音效10", "mp4"),
 }
 
 export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJinViewProps) {
@@ -112,6 +112,8 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         audioMode: locale === "en" ? "Audio only" : "纯音频",
         videoNotSupported:
             locale === "en" ? "Your browser does not support video playback." : "你的浏览器不支持视频播放。",
+        intro: locale === "en" ? "Intro" : "前言",
+        outro: locale === "en" ? "Closing" : "收势",
         audioModeLabel: locale === "en" ? "Audio follow mode" : "音频跟练模式",
         audioModeHint: locale === "en" ? "Play a new segment audio cue" : "播放新的分节口令音频",
         inhale: locale === "en" ? "Inhale" : "吸气",
@@ -493,6 +495,16 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [currentMovementIndex, mediaMode, currentVideoSrc])
 
+    const isPreparePhase = phase === "prepare"
+    const isEndingPhase = phase === "ending"
+    const headerTitle = isPreparePhase ? t.intro : isEndingPhase ? t.outro : currentMovement.name
+    const headerSub =
+        isPreparePhase || isEndingPhase
+            ? isPreparePhase
+                ? t.intro
+                : t.outro
+            : t.currentMovementLabel
+
     return (
         <div className="max-w-5xl mx-auto animate-in fade-in duration-500">
             {showBackButton && (
@@ -525,10 +537,8 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
 
                 <CardContent className="p-8 md:p-12 flex flex-col items-center justify-center min-h-[520px]">
                     <div className="text-center mb-12 w-full">
-                        <div className="text-sm font-medium text-primary mb-2 uppercase tracking-wider">
-                            {t.currentMovementLabel}
-                        </div>
-                        <h2 className="text-3xl md:text-4xl font-bold mb-4 text-balance">{currentMovement.name}</h2>
+                        <div className="text-sm font-medium text-primary mb-2 uppercase tracking-wider">{headerSub}</div>
+                        <h2 className="text-3xl md:text-4xl font-bold mb-4 text-balance">{headerTitle}</h2>
                     </div>
 
                     <div className="w-full mb-10">

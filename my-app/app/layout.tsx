@@ -15,8 +15,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-    title: "八段锦与站桩练习计时与视频 | Grid AI",
-    description: "八段锦与站桩练习平台，提供分节视频、呼吸口令、计时音乐与练习提示。",
+    title: "八段锦与站桩教学工具：单个动作作图解、口令呼吸视频、练习要点与健康益处资源书籍下载",
+    description:
+        "提供八段锦与站桩练习方法与口令视频、动作分解图表、发音与中文原文说明；同时覆盖站桩要领、静心冥想练法及 PDF 资料，帮助入门和进阶。",
 }
 
 export default function RootLayout({
