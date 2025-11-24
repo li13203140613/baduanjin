@@ -1,0 +1,19 @@
+# Local media files are synced to R2; keep them untracked here
+*.mp3
+*.MP3
+*.mp4
+*.MP4
+
+# Ignore subfolders of media binaries
+prepare/
+section-1/
+section-2/
+section-3/
+section-4/
+section-5/
+section-6/
+section-7/
+section-8/
+ending/
+
+!README.md

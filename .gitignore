@@ -1,0 +1,17 @@
+# Node modules and build output
+node_modules/
+**/node_modules/
+.next/
+.turbo/
+out/
+.vercel/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS/filesystem noise
+.DS_Store
+*.tsbuildinfo
