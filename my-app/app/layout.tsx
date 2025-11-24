@@ -1,4 +1,5 @@
 import type React from "react"
+import { Suspense } from "react"
 import type { Metadata } from "next"
 import { Geist, Geist_Mono } from "next/font/google"
 import { GoogleAnalytics } from "@/components/analytics"
@@ -28,7 +29,9 @@ export default function RootLayout({
     return (
         <html lang="zh-CN">
             <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-                <GoogleAnalytics />
+                <Suspense fallback={null}>
+                    <GoogleAnalytics />
+                </Suspense>
                 <script
                     type="application/ld+json"
                     dangerouslySetInnerHTML={{
