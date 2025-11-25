@@ -90,6 +90,7 @@ const MOVEMENTS_EN: MovementItem[] = [
 
 export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJinViewProps) {
     const movementList = locale === "en" ? MOVEMENTS_EN : MOVEMENTS
+    const videoModeSingleSrc = `${mediaBase}/${encodeURIComponent("八段锦_镜像_带呼吸口令_国家体育总局版")}.mp4`
 
     const { settings, getMovementDurations } = useBaDuanJinSettings()
     const { stop: stopSound } = useBreathSound()
@@ -102,7 +103,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     const [breathState, setBreathState] = useState<"inhale" | "exhale">("inhale")
     const [progress, setProgress] = useState(0)
     const [playedIntroFlags, setPlayedIntroFlags] = useState<boolean[]>(Array(movementList.length).fill(false))
-    const [currentVideoSrc, setCurrentVideoSrc] = useState<string>(movementList[0]?.cue.video ?? "")
+    const [currentVideoSrc, setCurrentVideoSrc] = useState<string>(videoModeSingleSrc)
 
     const timerRef = useRef<NodeJS.Timeout | null>(null)
     const progressTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -148,10 +149,26 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
 
     const handleMediaModeChange = (nextMode: MediaMode) => {
         stopInstructionMedia()
+        clearTimers()
+        stopSound()
+        isPlayingRef.current = false
+        setIsPlaying(false)
+        breathRemainingRef.current = 0
+        phaseEndAtRef.current = 0
+        setPhase("idle")
+        setCurrentMovementIndex(0)
+        setCurrentRep(1)
+        setBreathState("inhale")
+        setProgress(0)
+        setPlayedIntroFlags(Array(movementList.length).fill(false))
+        sectionIntroTargetRef.current = null
         setMediaMode(nextMode)
         if (nextMode === "video") {
-            const cue = movementList[currentMovementIndex]?.cue
-            setCurrentVideoSrc((prev) => prev || cue?.video || "")
+            setCurrentVideoSrc(videoModeSingleSrc)
+            setPrefetchVideoSrc("")
+        } else {
+            const cue = movementList[0]?.cue
+            setCurrentVideoSrc(cue?.video ?? "")
         }
     }
 
@@ -345,7 +362,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
         sectionIntroTargetRef.current = movementIdx
 
         const cue = movement.cue ?? { audio: `/audio/movement-${movementIdx + 1}.mp3` }
-        if (cue.video) {
+        if (cue.video && mediaMode !== "video") {
             setCurrentVideoSrc(cue.video)
         }
 
@@ -387,6 +404,29 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     }
 
     const handleStart = () => {
+        if (mediaMode === "video") {
+            clearTimers()
+            stopSound()
+            stopInstructionMedia()
+            const videoEl = instructionVideoRef.current
+            setCurrentVideoSrc(videoModeSingleSrc)
+            if (!videoEl) {
+                isPlayingRef.current = false
+                setIsPlaying(false)
+                return
+            }
+            isPlayingRef.current = true
+            setIsPlaying(true)
+            videoEl.src = videoModeSingleSrc
+            videoEl
+                .play()
+                .then(() => {})
+                .catch(() => {
+                    isPlayingRef.current = false
+                    setIsPlaying(false)
+                })
+            return
+        }
         if (isPlaying) return
 
         // 第一次开始
@@ -464,6 +504,16 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     }
 
     const handlePause = () => {
+        if (mediaMode === "video") {
+            isPlayingRef.current = false
+            setIsPlaying(false)
+            clearTimers()
+            stopSound()
+            if (instructionVideoRef.current && !instructionVideoRef.current.paused) {
+                instructionVideoRef.current.pause()
+            }
+            return
+        }
         isPlayingRef.current = false
         setIsPlaying(false)
         clearTimers()
@@ -477,6 +527,32 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     }
 
     const handleStop = () => {
+        if (mediaMode === "video") {
+            isPlayingRef.current = false
+            setIsPlaying(false)
+            clearTimers()
+            stopSound()
+            if (instructionVideoRef.current) {
+                try {
+                    instructionVideoRef.current.pause()
+                    instructionVideoRef.current.currentTime = 0
+                } catch (e) {
+                    // ignore
+                }
+            }
+            stopInstructionMedia()
+            instructionAudioRef.current = null
+            setPhase("idle")
+            setCurrentMovementIndex(0)
+            setCurrentRep(1)
+            setBreathState("inhale")
+            setProgress(0)
+            setPlayedIntroFlags(Array(movementList.length).fill(false))
+            sectionIntroTargetRef.current = null
+            setCurrentVideoSrc(videoModeSingleSrc)
+            setPrefetchVideoSrc("")
+            return
+        }
         isPlayingRef.current = false
         setIsPlaying(false)
         clearTimers()
@@ -494,6 +570,7 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
     }
 
     const handleJump = (direction: -1 | 1) => {
+        if (mediaMode === "video") return
         const target = currentMovementIndex + direction
         if (target < 0 || target >= movementList.length) return
 
@@ -510,15 +587,14 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
 
     useEffect(() => {
         if (mediaMode !== "video") return
-        const cue = movementList[currentMovementIndex]?.cue
-        if (cue?.video && currentVideoSrc !== cue.video) {
-            setCurrentVideoSrc(cue.video)
+        if (currentVideoSrc !== videoModeSingleSrc) {
+            setCurrentVideoSrc(videoModeSingleSrc)
         }
-        const nextMovement = movementList[currentMovementIndex + 1]
-        const nextSrc = nextMovement?.cue?.video ?? ""
-        setPrefetchVideoSrc(nextSrc || "")
+        if (prefetchVideoSrc) {
+            setPrefetchVideoSrc("")
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentMovementIndex, mediaMode, currentVideoSrc])
+    }, [mediaMode, currentVideoSrc, prefetchVideoSrc])
 
     const isPreparePhase = phase === "prepare"
     const isEndingPhase = phase === "ending"
@@ -676,24 +752,26 @@ export function BaDuanJinView({ showBackButton = false, locale = "zh" }: BaDuanJ
                         </div>
                     )}
 
-                    <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
-                        <Button
-                            variant="outline"
-                            onClick={() => handleJump(-1)}
-                            disabled={currentMovementIndex === 0}
-                            className="min-w-[96px]"
-                        >
-                            {t.prev}
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => handleJump(1)}
-                            disabled={currentMovementIndex === movementList.length - 1}
-                            className="min-w-[96px]"
-                        >
-                            {t.next}
-                        </Button>
-                    </div>
+                    {mediaMode === "audio" && (
+                        <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+                            <Button
+                                variant="outline"
+                                onClick={() => handleJump(-1)}
+                                disabled={currentMovementIndex === 0}
+                                className="min-w-[96px]"
+                            >
+                                {t.prev}
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => handleJump(1)}
+                                disabled={currentMovementIndex === movementList.length - 1}
+                                className="min-w-[96px]"
+                            >
+                                {t.next}
+                            </Button>
+                        </div>
+                    )}
 
                     <div className="flex items-center gap-6">
                         {!isPlaying ? (
